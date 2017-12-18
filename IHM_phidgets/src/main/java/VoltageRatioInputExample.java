@@ -1,9 +1,9 @@
 import com.phidget22.*;
 
-
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
+import java.util.Arrays;
 
 public class VoltageRatioInputExample {
 
@@ -13,6 +13,7 @@ public class VoltageRatioInputExample {
 
         VoltageRatioInput ch = new VoltageRatioInput();
 
+        System.out.println(Arrays.toString(AudioSystem.getMixerInfo()));
         // Open an audio input stream.
         AudioInputStream audioIn = AudioSystem.getAudioInputStream(
                 VoltageRatioInputExample.class.getResourceAsStream("psx.wav")
@@ -21,8 +22,9 @@ public class VoltageRatioInputExample {
         Clip clip = AudioSystem.getClip();
         // Open audio clip and load samples from the audio input stream.
         clip.open(audioIn);
+        clip.setFramePosition(0);
         clip.start();
-        clip.drain();
+
 
         ch.addAttachListener(new AttachListener() {
             public void onAttach(AttachEvent ae) {
@@ -121,8 +123,8 @@ public class VoltageRatioInputExample {
             // Net.enableServerDiscovery(ServerType.DEVICE);
             // ch.setIsRemote(true);
 
-            System.out.println("Opening and waiting 5 seconds for attachment...");
-            ch.open(5000);
+            System.out.println("Opening and waiting 10 seconds for attachment...");
+            ch.open(10000);
 
             if (ch.getDeviceID() == DeviceID.PN_1046) {
                 System.out.println("Setting bridge enabled");
