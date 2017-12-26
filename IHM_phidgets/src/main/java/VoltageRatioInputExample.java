@@ -3,7 +3,6 @@ import com.phidget22.*;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
-import java.util.Arrays;
 
 public class VoltageRatioInputExample {
 
@@ -11,20 +10,11 @@ public class VoltageRatioInputExample {
         //Enable logging to stdout
         com.phidget22.Log.enable(LogLevel.INFO, null);
 
+        final String[] melody = {"d1s.wav", "f1.wav", "d1s.wav", "f1.wav", "d1s.wav", "f1.wav", "d1s.wav", "f1.wav",
+                "d1s.wav", "f1.wav", "d1s.wav", "c1s.wav", "d1s.wav", "f1.wav", "f1s.wav", "f1.wav"};
+        final int[] melodyIndex = {0};
+
         VoltageRatioInput ch = new VoltageRatioInput();
-
-        System.out.println(Arrays.toString(AudioSystem.getMixerInfo()));
-        // Open an audio input stream.
-        AudioInputStream audioIn = AudioSystem.getAudioInputStream(
-                VoltageRatioInputExample.class.getResourceAsStream("psx.wav")
-        );
-        // Get a sound clip resource.
-        Clip clip = AudioSystem.getClip();
-        // Open audio clip and load samples from the audio input stream.
-        clip.open(audioIn);
-        clip.setFramePosition(0);
-        clip.start();
-
 
         ch.addAttachListener(new AttachListener() {
             public void onAttach(AttachEvent ae) {
@@ -67,11 +57,31 @@ public class VoltageRatioInputExample {
             }
         });
 
+        final long[] lastTrigger = {0};
         ch.addVoltageRatioChangeListener(new VoltageRatioInputVoltageRatioChangeListener() {
             public void onVoltageRatioChange(VoltageRatioInputVoltageRatioChangeEvent e) {
-                System.out.printf("Voltage Ratio Changed: %.4g\n", e.getVoltageRatio());
+                double val = e.getVoltageRatio();
+                if (val > 0.9 && System.currentTimeMillis() - lastTrigger[0] > 200) {
+                    System.out.printf("Voltage Ratio Changed: %.4g\n", val);
+                    // Open an audio input stream.
+                    AudioInputStream audioIn = null;
+                    try {
+                        audioIn = AudioSystem.getAudioInputStream(
+                                VoltageRatioInputExample.class.getResourceAsStream(melody[melodyIndex[0]])
+                        );
+                        melodyIndex[0] = (melodyIndex[0] + 1) % melody.length;
 
-                if (e.getVoltageRatio() > 0.51) {
+                        // Get a sound clip resource.
+                        Clip clip = AudioSystem.getClip();
+                        // Open audio clip and load samples from the audio input stream.
+                        clip.open(audioIn);
+                        clip.setFramePosition(0);
+                        clip.start();
+
+                        lastTrigger[0] = System.currentTimeMillis();
+                    } catch (Exception e1) {
+                        e1.printStackTrace();
+                    }
 
                 }
             }
@@ -125,14 +135,16 @@ public class VoltageRatioInputExample {
 
             System.out.println("Opening and waiting 10 seconds for attachment...");
             ch.open(10000);
+            ch.setVoltageRatioChangeTrigger(0.01);
+            ch.setDataInterval(16);
 
             if (ch.getDeviceID() == DeviceID.PN_1046) {
                 System.out.println("Setting bridge enabled");
                 ch.setBridgeEnabled(true);
             }
 
-            System.out.println("\n\nGathering data for 100 seconds\n\n");
-            Thread.sleep(100000);
+            System.out.println("\n\nGathering data for 1000 seconds\n\n");
+            Thread.sleep(1000000);
 
             ch.close();
             System.out.println("\nClosed Voltage Ratio Input");
