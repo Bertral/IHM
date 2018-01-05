@@ -1,33 +1,9 @@
 import com.phidget22.*;
 
-import javax.sound.sampled.AudioSystem;
 import java.util.ArrayList;
 
 public class Maestro implements Runnable {
 
-    public static void main(String[] args) throws Exception {
-        //Enable logging to stdout
-        com.phidget22.Log.enable(LogLevel.INFO, null);
-
-        ArrayList<Instrument> instruments = new ArrayList<>();
-
-        VoltageRatioInput ch0 = new VoltageRatioInput();
-        ch0.setChannel(0);
-
-        VoltageRatioInput ch1 = new VoltageRatioInput();
-        ch1.setChannel(1);
-
-        instruments.add(new Instrument(ch0,
-                AudioSystem.getAudioInputStream(Maestro.class.getResourceAsStream("a1.wav"))));
-
-
-        instruments.add(new Instrument(ch1,
-                AudioSystem.getAudioInputStream(Maestro.class.getResourceAsStream("f1.wav"))));
-
-        Thread thread = new Thread(new Maestro(instruments));
-        thread.start();
-        thread.join();
-    }
 
     private ArrayList<Instrument> instruments; // paires Input <-> fichier son
 
