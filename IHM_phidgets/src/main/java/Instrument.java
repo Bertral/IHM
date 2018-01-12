@@ -11,15 +11,38 @@ import java.io.IOException;
 public class Instrument {
     private VoltageRatioInput sensorInput;
     private Clip clip;
-    private double threshold;
+    private double upperThreshold = 0.55;
     private boolean triggered = false;
+    private boolean enabled = false;
+    private double lowerThreshold = 0.45;
 
-    public Instrument(VoltageRatioInput sensorInput, AudioInputStream inStream) throws IOException,
-            LineUnavailableException, PhidgetException {
-        this.sensorInput = sensorInput;
+    public Instrument() {
+        try {
+            clip = AudioSystem.getClip();
+        } catch (LineUnavailableException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void setSensorInput(VoltageRatioInput sensorInput) throws PhidgetException {
+        if (this.sensorInput != null) {
+            this.sensorInput.close();
+        }
         sensorInput.open();
-        clip = AudioSystem.getClip();
-        clip.open(inStream);
+        this.sensorInput = sensorInput;
+    }
+
+    public void setAudioInputStream(AudioInputStream inputStream) {
+        try {
+            if (clip.isOpen()) {
+                clip.close();
+            }
+            clip.open(inputStream);
+        } catch (LineUnavailableException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public void play() {
@@ -32,9 +55,9 @@ public class Instrument {
     }
 
     public boolean isTriggered() throws PhidgetException {
-        if(!triggered) {
-            triggered = sensorInput.getSensorValue() > threshold;
-        } else if(sensorInput.getSensorValue() > threshold) {
+        if (!triggered) {
+            triggered = sensorInput.getSensorValue() > upperThreshold || lowerThreshold > sensorInput.getSensorValue();
+        } else if (sensorInput.getSensorValue() > upperThreshold || lowerThreshold > sensorInput.getSensorValue()) {
             return false;
         } else {
             triggered = false;
@@ -43,36 +66,34 @@ public class Instrument {
         return triggered;
     }
 
-    public double getThreshold() {
-        return threshold;
+    public double getUpperThreshold() {
+        return upperThreshold;
     }
 
-    public void calibrate() {
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-        for(int i = 0; i < 500; i++) {
-            double val = 0;
-            try {
-                val = getSensorValue();
-            } catch (PhidgetException e) {
-                e.printStackTrace();
-            }
+    public void setUpperThreshold(double upperThreshold) {
+        this.upperThreshold = upperThreshold;
+    }
 
-            if(val > max) {
-                max = val;
-            }
+    public boolean isEnabled() {
+        return enabled;
+    }
 
-            if(val < min && val > 0.0) {
-                min = val;
-            }
-
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+    public void setEnabled(boolean enabled) throws PhidgetException, NullPointerException {
+        if(enabled) {
+            double testSensor = sensorInput.getSensorValue();
+            if (!clip.isOpen()) {
+                throw new NullPointerException();
             }
         }
 
-        threshold = (min+max)/2;// + 0.05*(min+max)/2);
+        this.enabled = enabled;
+    }
+
+    public void setLowerThreshold(double lowerThreshold) {
+        this.lowerThreshold = lowerThreshold;
+    }
+
+    public double getLowerThreshold() {
+        return lowerThreshold;
     }
 }

@@ -3,7 +3,7 @@ import com.phidget22.*;
 import java.util.ArrayList;
 
 public class Maestro implements Runnable {
-
+    private final int ACTIVATION_COOLDOWN = 300;
 
     private ArrayList<Instrument> instruments; // paires Input <-> fichier son
 
@@ -15,52 +15,35 @@ public class Maestro implements Runnable {
     @Override
     public void run() {
         try {
-            System.out.println("Calibrating ... Please stomp the ground a few times (this will take 5 seconds) !");
-
-            ArrayList<Thread> threads = new ArrayList<>();
-            for (final Instrument ins : instruments) {
-                threads.add(new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        ins.calibrate();
-                    }
-                }));
-            }
-
-            for (Thread t : threads) {
-                t.start();
-            }
-
-            for (Thread t : threads) {
-                t.join();
-            }
-
-            System.out.println("Calibrated !");
-
             long lastTriggered = 0;
             while (true) {
                 ArrayList<Instrument> triggeredInstruments = new ArrayList<>();
 
+                // sample sur 100 ms
+                for(int i = 0; i < 10; i++){
+                    Thread.sleep(10);
+                }
+
                 for (Instrument ins : instruments) {
-                    if(ins.isTriggered()) {
+                    if (ins.isEnabled() && ins.isTriggered()) {
                         triggeredInstruments.add(ins);
                     }
                 }
 
                 Instrument triggeredInstrument = null;
                 for (Instrument ins : triggeredInstruments) {
-                    if ((triggeredInstrument == null || ins.getSensorValue() - ins.getThreshold() >
-                            triggeredInstrument.getSensorValue() - triggeredInstrument.getThreshold())) {
+                    if ((triggeredInstrument == null ||
+                            Math.abs(ins.getSensorValue() - (ins.getUpperThreshold() + ins.getLowerThreshold()) / 2) >
+                                    Math.abs(triggeredInstrument.getSensorValue() - (triggeredInstrument
+                                            .getUpperThreshold() + triggeredInstrument.getLowerThreshold()) / 2))) {
                         triggeredInstrument = ins;
                     }
                 }
 
-                if (triggeredInstrument != null && System.currentTimeMillis() - lastTriggered > 200) {
+                if (triggeredInstrument != null && System.currentTimeMillis() - lastTriggered > ACTIVATION_COOLDOWN) {
                     triggeredInstrument.play();
                     lastTriggered = System.currentTimeMillis();
                 }
-
-                Thread.sleep(10);
             }
         } catch (PhidgetException e) {
             e.printStackTrace();
