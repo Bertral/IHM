@@ -11,10 +11,9 @@ import java.io.IOException;
 public class Instrument {
     private VoltageRatioInput sensorInput;
     private Clip clip;
-    private double upperThreshold = 0.55;
-    private boolean triggered = false;
     private boolean enabled = false;
     private double lowerThreshold = 0.45;
+    private double previousValue = lowerThreshold;
 
     public Instrument() {
         try {
@@ -28,6 +27,17 @@ public class Instrument {
         if (this.sensorInput != null) {
             this.sensorInput.close();
         }
+
+        // lorsque le hub usb est détecté, configure son taux de rafraichissement au plus rapide (16 ms)
+        sensorInput.addAttachListener(attachEvent -> {
+            VoltageRatioInput source = (VoltageRatioInput) attachEvent.getSource();
+            try {
+                source.setDataInterval(source.getMinDataInterval());
+            } catch (PhidgetException e) {
+                e.printStackTrace();
+            }
+        });
+
         sensorInput.open();
         this.sensorInput = sensorInput;
     }
@@ -51,36 +61,20 @@ public class Instrument {
     }
 
     public double getSensorValue() throws PhidgetException {
+//        double val = sensorInput.getSensorValue();
+//        lowerThreshold = (val + previousValue)/2;
+//        previousValue = val;
         return sensorInput.getSensorValue();
     }
 
-    public boolean isTriggered() throws PhidgetException {
-        if (!triggered) {
-            triggered = sensorInput.getSensorValue() > upperThreshold || lowerThreshold > sensorInput.getSensorValue();
-        } else if (sensorInput.getSensorValue() > upperThreshold || lowerThreshold > sensorInput.getSensorValue()) {
-            return false;
-        } else {
-            triggered = false;
-        }
-
-        return triggered;
-    }
-
-    public double getUpperThreshold() {
-        return upperThreshold;
-    }
-
-    public void setUpperThreshold(double upperThreshold) {
-        this.upperThreshold = upperThreshold;
-    }
-
-    public boolean isEnabled() {
+    public synchronized boolean isEnabled() {
         return enabled;
     }
 
-    public void setEnabled(boolean enabled) throws PhidgetException, NullPointerException {
-        if(enabled) {
-            double testSensor = sensorInput.getSensorValue();
+    public synchronized void setEnabled(boolean enabled) throws PhidgetException, NullPointerException {
+        if (enabled) {
+            // teste le fonctionnement de getSensorValue()
+            sensorInput.getSensorValue();
             if (!clip.isOpen()) {
                 throw new NullPointerException();
             }

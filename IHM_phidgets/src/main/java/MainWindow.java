@@ -1,5 +1,3 @@
-import com.phidget22.AttachEvent;
-import com.phidget22.AttachListener;
 import com.phidget22.PhidgetException;
 import com.phidget22.VoltageRatioInput;
 
@@ -9,20 +7,23 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.*;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 
 /**
  * Project : IHM_phidgets
  * Date : 05.01.18
  */
 public class MainWindow {
+
+    private static final String FILE_NODE = "file";
+    private static final String ENABLED_NODE = "enabled";
+    private static final String UPPERTHRESHOLD_NODE = "upperThreshold";
+    private static final String LOWERTHRESHOLD_NODE = "lowerThreshold";
 
     // Elements d'interface (initialisés par Intellij UI Designer)
     private JPanel mainPanel;
@@ -126,15 +127,6 @@ public class MainWindow {
                 VoltageRatioInput ch = new VoltageRatioInput();
                 ch.setChannel(i);
 
-                // lorsque le hub usb est branché, configure son taux de rafraichissement au plus rapide
-                ch.addAttachListener(attachEvent -> {
-                    VoltageRatioInput source = (VoltageRatioInput) attachEvent.getSource();
-                    try {
-                        source.setDataInterval(source.getMinDataInterval());
-                    } catch (PhidgetException e) {
-                        e.printStackTrace();
-                    }
-                });
                 instrumentUIs.get(i).instrument.setSensorInput(ch);
             } catch (PhidgetException e) {
                 e.printStackTrace();
@@ -160,12 +152,9 @@ public class MainWindow {
 
                 private void update() {
                     try {
-                        // définit le fichier source de l'instrument puis l'active
+                        // définit le fichier source de l'instrument
                         instrumentUIs.get(index).instrument.setAudioInputStream(AudioSystem.getAudioInputStream(
                                 new File(instrumentUIs.get(index).textField.getText())));
-                        if (!instrumentUIs.get(index).enabled.isSelected()) {
-                            instrumentUIs.get(index).enabled.doClick();
-                        }
 
                         // en cas d'erreur, disable l'instrument
                     } catch (UnsupportedAudioFileException e) {
@@ -175,7 +164,7 @@ public class MainWindow {
 
                         // message d'erreur
                         JOptionPane.showMessageDialog(mainPanel,
-                                "Instrument " + index + " sound file format unsupported !",
+                                "Instrument " + index + " sound file format unsupported (expected AIFF, AU or WAV) !",
                                 "File error",
                                 JOptionPane.ERROR_MESSAGE);
                     } catch (IOException e) {
@@ -204,7 +193,7 @@ public class MainWindow {
                     final JDialog dlg = new JDialog(new JFrame(), "Calibrating", true);
                     final JProgressBar dpb = new JProgressBar(0, 500);
                     dlg.add(BorderLayout.CENTER, dpb);
-                    dlg.add(BorderLayout.NORTH, new JLabel("Stand still, then stomp the ground !"));
+                    dlg.add(BorderLayout.NORTH, new JLabel("Stomp the ground !"));
                     dlg.setLocationRelativeTo(null);
                     dlg.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
                     dlg.setSize(300, 75);
@@ -215,14 +204,9 @@ public class MainWindow {
 
                     try {
                         double min = Double.MAX_VALUE;
-                        double max = Double.MIN_VALUE;
                         for (int i1 = 0; i1 < 500; i1++) {
                             dpb.setValue(i1);
                             double val = instrumentUIs.get(index).instrument.getSensorValue();
-
-                            if (val > max) {
-                                max = val;
-                            }
 
                             if (val < min && val > 0.0) {
                                 min = val;
@@ -236,10 +220,6 @@ public class MainWindow {
                         }
 
                         dlg.dispose();
-
-                        //instrumentUIs.get(index).spinner.setValue((min + max) / 2);
-
-                        instrumentUIs.get(index).instrument.setUpperThreshold(max);
 
                         instrumentUIs.get(index).instrument.setLowerThreshold(min);
 
@@ -287,14 +267,14 @@ public class MainWindow {
             }
         });
 
-        // calibre tous les instruments TODO
+        // calibre tous les instruments
         calibrateAll.addActionListener(actionEvent -> {
             Thread t = new Thread(() -> {
                 // Fenêtre de progression
                 final JDialog dlg = new JDialog(new JFrame(), "Calibrating", true);
                 final JProgressBar dpb = new JProgressBar(0, 500);
                 dlg.add(BorderLayout.CENTER, dpb);
-                dlg.add(BorderLayout.NORTH, new JLabel("Stand still, then stomp the ground !"));
+                dlg.add(BorderLayout.NORTH, new JLabel("Stomp the ground !"));
                 dlg.setLocationRelativeTo(null);
                 dlg.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
                 dlg.setSize(300, 75);
@@ -311,15 +291,9 @@ public class MainWindow {
                     threads.add(new Thread(() -> {
                         try {
                             double min = Double.MAX_VALUE;
-                            double max = Double.MIN_VALUE;
                             for (int i = 0; i < 500; i++) {
                                 dpb.setValue(i);
                                 double val = instrumentUIs.get(finalJ).instrument.getSensorValue();
-
-
-                                if (val > max) {
-                                    max = val;
-                                }
 
                                 if (val < min && val > 0.0) {
                                     min = val;
@@ -334,7 +308,7 @@ public class MainWindow {
 
                             dlg.dispose();
 
-                            // instrumentUIs.get(finalJ).spinner.setValue((min + max) / 2);
+                            instrumentUIs.get(finalJ).instrument.setLowerThreshold(min);
 
                         } catch (PhidgetException e) {
                             try {
@@ -363,143 +337,123 @@ public class MainWindow {
         });
 
         // sauvegarder un profil
-        saveProfileBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
+        saveProfileBtn.addActionListener(actionEvent -> {
 
-                // Si le profil n'a pas de nom, on affiche un message d'erreur
-                if (profilesComboBox.getSelectedItem() == null || profilesComboBox.getSelectedItem().equals("")) {
-                    // message d'erreur
-                    JOptionPane.showMessageDialog(mainPanel,
-                            "Please enter a profile name.",
-                            "Error",
-                            JOptionPane.ERROR_MESSAGE);
-                } else {
+            // Si le profil n'a pas de nom, on affiche un message d'erreur
+            if (profilesComboBox.getSelectedItem() == null) {
+                // message d'erreur
+                JOptionPane.showMessageDialog(mainPanel,
+                        "Please enter a profile name.",
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+            } else {
 
-                    Properties properties = new Properties();
-                    try {
-                        properties.load(this.getClass().getClassLoader().getResourceAsStream("profiles.properties"));
+                try {
 
-                        // Si le profil existe, on demande confirmation
-                        if (properties.getProperty(profilesComboBox.getSelectedItem() + "instrument" + 0 + "file") !=
-                                null) {
-                            int dialogResult = JOptionPane.showConfirmDialog(mainPanel,
-                                    "Profile \"" + profilesComboBox.getSelectedItem() + "\" already exists, are you " +
-                                            "sure you want to overwrite the existing profile ?",
-                                    "Confirm overwrite",
-                                    JOptionPane.YES_NO_OPTION);
-                            if (dialogResult != JOptionPane.YES_OPTION) {
-                                return;
-                            }
+                    Preferences prefs = Preferences.userRoot().node("tremor");
+
+                    // Si le profil existe, on demande confirmation
+                    if (prefs.nodeExists(profilesComboBox.getSelectedItem().toString())) {
+                        int dialogResult = JOptionPane.showConfirmDialog(mainPanel,
+                                "Profile \"" + profilesComboBox.getSelectedItem() + "\" already exists, are you " +
+                                        "sure you want to overwrite the existing profile ?",
+                                "Confirm overwrite",
+                                JOptionPane.YES_NO_OPTION);
+                        if (dialogResult != JOptionPane.YES_OPTION) {
+                            return;
                         }
-
-                        for (int i = 0; i < instrumentUIs.size(); i++) {
-                            String propertyName = profilesComboBox.getSelectedItem() + "instrument" + i;
-                            properties.setProperty(propertyName + "file", instrumentUIs.get(i).textField.getText());
-                            properties.setProperty(propertyName + "enabled",
-                                    String.valueOf(instrumentUIs.get(i).enabled.isSelected()));
-                            properties.setProperty(propertyName + "upperThreshold",
-                                    String.valueOf(instrumentUIs.get(i).instrument.getUpperThreshold()));
-                            properties.setProperty(propertyName + "lowerThreshold",
-                                    String.valueOf(instrumentUIs.get(i).instrument.getLowerThreshold()));
-                        }
-
-                        properties.store(new FileWriter(new File(this.getClass().getClassLoader().getResource
-                                ("profiles.properties").toURI())), "");
-
-                        refreshProfiles();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    } catch (URISyntaxException e) {
-                        e.printStackTrace();
                     }
+
+                    Preferences profileNode = prefs.node(profilesComboBox.getSelectedItem().toString());
+
+                    for (int i = 0; i < instrumentUIs.size(); i++) {
+                        profileNode.node(String.valueOf(i)).put(FILE_NODE, instrumentUIs.get(i).textField.getText
+                                ());
+                        profileNode.node(String.valueOf(i)).putBoolean(ENABLED_NODE, instrumentUIs.get(i).enabled
+                                .isSelected());
+                        profileNode.node(String.valueOf(i)).putDouble(LOWERTHRESHOLD_NODE, instrumentUIs.get(i)
+                                .instrument.getLowerThreshold());
+                    }
+
+                    prefs.flush();
+
+                    refreshProfiles();
+                } catch (BackingStoreException e) {
+                    e.printStackTrace();
                 }
             }
         });
 
         // load a profile
-        loadProfileBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
+        loadProfileBtn.addActionListener(actionEvent -> {
+            Preferences prefs = Preferences.userRoot().node("tremor");
 
-                Properties properties = new Properties();
-                try {
-                    properties.load(this.getClass().getClassLoader().getResourceAsStream("profiles.properties"));
+            try {
+                if (profilesComboBox.getSelectedItem() == null || !prefs.nodeExists(profilesComboBox
+                        .getSelectedItem().toString())) {
+                    // message d'erreur
+                    JOptionPane.showMessageDialog(mainPanel,
+                            "Profile \"" + profilesComboBox.getSelectedItem() + "\" doesn't exist.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                } else {
 
-                    if (properties.getProperty(profilesComboBox.getSelectedItem() + "instrument" + 0 + "file") ==
-                            null) {
-                        // message d'erreur
-                        JOptionPane.showMessageDialog(mainPanel,
-                                "Profile \"" + profilesComboBox.getSelectedItem() + "\" doesn't exist.",
-                                "Error",
-                                JOptionPane.ERROR_MESSAGE);
-                    } else {
-                        for (int i = 0; i < instrumentUIs.size(); i++) {
-                            String propertyName = profilesComboBox.getSelectedItem() + "instrument" + i;
-                            instrumentUIs.get(i).textField.setText(properties.getProperty(propertyName + "file"));
-                            instrumentUIs.get(i).enabled.setSelected(Boolean.parseBoolean(properties.getProperty
-                                    (propertyName + "enabled")));
-                            instrumentUIs.get(i).instrument.setUpperThreshold(Double.parseDouble(properties.getProperty
-                                    (propertyName + "upperThreshold")));
-                            instrumentUIs.get(i).instrument.setLowerThreshold(Double.parseDouble(properties.getProperty
-                                    (propertyName + "lowerThreshold")));
+                    Preferences profileNode = prefs.node(profilesComboBox.getSelectedItem().toString());
+
+                    for (int i = 0; i < instrumentUIs.size(); i++) {
+                        instrumentUIs.get(i).textField.setText(profileNode.node(String.valueOf(i)).get(FILE_NODE,
+                                ""));
+                        instrumentUIs.get(i).instrument.setLowerThreshold(profileNode.node(String.valueOf(i))
+                                .getDouble(LOWERTHRESHOLD_NODE, 0.5));
+                        if (profileNode.node(String.valueOf(i)).getBoolean
+                                (ENABLED_NODE, false) != instrumentUIs.get(i).enabled.isSelected()) {
+                            instrumentUIs.get(i).enabled.doClick();
                         }
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
                 }
+
+            } catch (BackingStoreException e) {
+                e.printStackTrace();
             }
         });
 
         // supprime un profile
-        deleteProfileBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
+        deleteProfileBtn.addActionListener(actionEvent -> {
+            try {
+                Preferences prefs = Preferences.userRoot().node("tremor");
 
-                Properties properties = new Properties();
-                try {
-                    properties.load(this.getClass().getClassLoader().getResourceAsStream("profiles.properties"));
-
-                    if (properties.getProperty(profilesComboBox.getSelectedItem() + "instrument" + 0 + "file") ==
-                            null) {
-                        // message d'erreur
-                        JOptionPane.showMessageDialog(mainPanel,
-                                "Profile \"" + profilesComboBox.getSelectedItem() + "\" doesn't exist.",
-                                "Error",
-                                JOptionPane.ERROR_MESSAGE);
-                    } else {
-                        int dialogResult = JOptionPane.showConfirmDialog(mainPanel,
-                                "Are you sure you want to delete profile \"" + profilesComboBox.getSelectedItem() +
-                                        "\" ?",
-                                "Confirm deletion",
-                                JOptionPane.YES_NO_OPTION);
-                        if (dialogResult == JOptionPane.YES_OPTION) {
-                            for (int i = 0; i < instrumentUIs.size(); i++) {
-                                String propertyName = profilesComboBox.getSelectedItem() + "instrument" + i;
-                                properties.remove(propertyName + "file");
-                                properties.remove(propertyName + "enabled");
-                                properties.remove(propertyName + "upperThreshold");
-                                properties.remove(propertyName + "lowerThreshold");
-                            }
-                        }
-
-                        properties.store(new FileWriter(new File(this.getClass().getClassLoader().getResource
-                                ("profiles.properties").toURI())), "");
+                if (profilesComboBox.getSelectedItem() == null || !prefs.nodeExists(profilesComboBox
+                        .getSelectedItem().toString())) {
+                    // message d'erreur
+                    JOptionPane.showMessageDialog(mainPanel,
+                            "Profile \"" + profilesComboBox.getSelectedItem() + "\" doesn't exist.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                } else {
+                    // confirmation de suppression
+                    int dialogResult = JOptionPane.showConfirmDialog(mainPanel,
+                            "Are you sure you want to delete profile \"" + profilesComboBox.getSelectedItem() +
+                                    "\" ?",
+                            "Confirm deletion",
+                            JOptionPane.YES_NO_OPTION);
+                    if (dialogResult == JOptionPane.YES_OPTION) {
+                        // suppression
+                        prefs.node(profilesComboBox.getSelectedItem().toString()).removeNode();
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (URISyntaxException e) {
-                    e.printStackTrace();
+
+                    // mise à jour de la suppression
+                    prefs.flush();
                 }
 
-                refreshProfiles();
+            } catch (BackingStoreException e) {
+                e.printStackTrace();
             }
+
+            refreshProfiles();
         });
 
         // charge les profiles dans la combobox
         refreshProfiles();
-
-        // TODO : load a profile
 
         new Thread(maestro).start();
     }
@@ -508,17 +462,13 @@ public class MainWindow {
         profilesComboBox.removeAllItems();
         Set<String> names = new TreeSet<>();
 
-        Properties properties = new Properties();
-
         try {
-            properties.load(this.getClass().getClassLoader().getResourceAsStream("profiles.properties"));
-
-            for (String name : properties.stringPropertyNames()) {
-                name = name.substring(0, name.lastIndexOf("instrument"));
+            Preferences prefs = Preferences.userRoot().node("tremor");
+            for (String name : prefs.childrenNames()) {
                 names.add(name);
             }
 
-        } catch (IOException e) {
+        } catch (BackingStoreException e) {
             e.printStackTrace();
         }
 

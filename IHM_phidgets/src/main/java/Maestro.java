@@ -2,47 +2,51 @@ import com.phidget22.*;
 
 import java.util.ArrayList;
 
+/**
+ * Project : IHM_phidgets
+ * Date : 30.12.17
+ */
 public class Maestro implements Runnable {
-    private final int ACTIVATION_COOLDOWN = 300;
+    private final int ACTIVATION_COOLDOWN = 50;
 
     private ArrayList<Instrument> instruments; // paires Input <-> fichier son
 
     public Maestro(ArrayList<Instrument> instruments) {
         this.instruments = instruments;
-
     }
 
     @Override
     public void run() {
         try {
-            long lastTriggered = 0;
+            long lastLoop = System.currentTimeMillis();
+
             while (true) {
-                ArrayList<Instrument> triggeredInstruments = new ArrayList<>();
-
-                // sample sur 100 ms
-                for(int i = 0; i < 10; i++){
-                    Thread.sleep(10);
+                // si la dernière itération a duré moins que 12 ms, attend jusqu'à 12 ms
+                long currentTime = System.currentTimeMillis();
+                if(currentTime - lastLoop < 12) {
+                    Thread.sleep(12 - (currentTime - lastLoop));
                 }
+                lastLoop = currentTime;
 
-                for (Instrument ins : instruments) {
-                    if (ins.isEnabled() && ins.isTriggered()) {
-                        triggeredInstruments.add(ins);
-                    }
-                }
-
+                // recherche un instrument actif, sous le seuil d'activation, qui a détecté le plus gros choc
                 Instrument triggeredInstrument = null;
-                for (Instrument ins : triggeredInstruments) {
-                    if ((triggeredInstrument == null ||
-                            Math.abs(ins.getSensorValue() - (ins.getUpperThreshold() + ins.getLowerThreshold()) / 2) >
-                                    Math.abs(triggeredInstrument.getSensorValue() - (triggeredInstrument
-                                            .getUpperThreshold() + triggeredInstrument.getLowerThreshold()) / 2))) {
+                double triggeredVal = Double.MAX_VALUE;
+                for (Instrument ins : instruments) {
+                    double val = ins.getSensorValue();
+                    if (ins.isEnabled() // instrument actif
+                            && val < ins.getLowerThreshold() // valeur sous le seuil d'activation
+                            && (triggeredInstrument == null
+                            || ins.getLowerThreshold() - val > triggeredInstrument.getLowerThreshold() - triggeredVal)
+                        // écart au seuil plus grand que les autres instuments activés
+                            ) {
                         triggeredInstrument = ins;
+                        triggeredVal = val;
                     }
                 }
 
-                if (triggeredInstrument != null && System.currentTimeMillis() - lastTriggered > ACTIVATION_COOLDOWN) {
+                if (triggeredInstrument != null) {
                     triggeredInstrument.play();
-                    lastTriggered = System.currentTimeMillis();
+                    Thread.sleep(ACTIVATION_COOLDOWN);
                 }
             }
         } catch (PhidgetException e) {
@@ -50,6 +54,5 @@ public class Maestro implements Runnable {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        //ch.close();
     }
 }
