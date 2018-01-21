@@ -9,20 +9,23 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.io.*;
 import java.util.ArrayList;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.Arrays;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
 /**
  * Project : IHM_phidgets
  * Date : 05.01.18
+ * Authors : Antoine FRIANT, Lawrence STALDER, Valentin FININI
+ * <p>
+ * Fenêtre principale de l'application
  */
 public class MainWindow {
 
+    // noms des noeuds de préfécences pour la sauvegarde des profils (Java Preferences API)
+    private static final String ROOT_NODE = "tremor";
     private static final String FILE_NODE = "file";
     private static final String ENABLED_NODE = "enabled";
-    private static final String UPPERTHRESHOLD_NODE = "upperThreshold";
     private static final String LOWERTHRESHOLD_NODE = "lowerThreshold";
 
     // Elements d'interface (initialisés par Intellij UI Designer)
@@ -78,7 +81,7 @@ public class MainWindow {
      * Point d'entrée de l'application
      * Ouvre la fenêtre principale
      *
-     * @param args ignorés
+     * @param args ignoré
      */
     public static void main(String[] args) {
         JFrame frame = new JFrame("Tremor");
@@ -91,16 +94,10 @@ public class MainWindow {
     }
 
     /**
-     * Appelé avant le contructeur pour initialiser manuellement des éléments d'interface
-     */
-    private void createUIComponents() {
-
-    }
-
-    /**
      * Constructeur
      */
     public MainWindow() {
+        // Créé les intruments
         final ArrayList<Instrument> instruments = new ArrayList<>();
         for (int i = 0; i < 8; i++) {
             instruments.add(new Instrument());
@@ -118,21 +115,23 @@ public class MainWindow {
         instrumentUIs.add(new InstrumentUI(instruments.get(6), textField6, browse6, calibrate6, enabled6));
         instrumentUIs.add(new InstrumentUI(instruments.get(7), textField7, browse7, calibrate7, enabled7));
 
-        // file chooser
+        // sélecteur de fichier
         final JFileChooser fc = new JFileChooser();
 
         // Pour chaque ligne d'interface contrôlant un instrument ...
         for (int i = 0; i < instrumentUIs.size(); i++) {
             try {
+                // définit le canal du capteur de vibration
                 VoltageRatioInput ch = new VoltageRatioInput();
                 ch.setChannel(i);
 
+                // assigne le capteur à l'instrument
                 instrumentUIs.get(i).instrument.setSensorInput(ch);
             } catch (PhidgetException e) {
                 e.printStackTrace();
             }
 
-            // configure le textfield listener (noms de fichiers)
+            // configure le textfield listener (inputs des noms de fichiers audio)
             final int index = i;
             instrumentUIs.get(i).textField.getDocument().addDocumentListener(new DocumentListener() {
                 @Override
@@ -156,13 +155,13 @@ public class MainWindow {
                         instrumentUIs.get(index).instrument.setAudioInputStream(AudioSystem.getAudioInputStream(
                                 new File(instrumentUIs.get(index).textField.getText())));
 
-                        // en cas d'erreur, disable l'instrument
+                        // en cas d'erreur (fichier inexistant ou mal formatté), disable l'instrument
                     } catch (UnsupportedAudioFileException e) {
                         if (instrumentUIs.get(index).enabled.isSelected()) {
                             instrumentUIs.get(index).enabled.doClick();
                         }
 
-                        // message d'erreur
+                        // message d'erreur en cas de format non reconnu
                         JOptionPane.showMessageDialog(mainPanel,
                                 "Instrument " + index + " sound file format unsupported (expected AIFF, AU or WAV) !",
                                 "File error",
@@ -177,11 +176,12 @@ public class MainWindow {
 
             // Browse button listener
             instrumentUIs.get(i).browse.addActionListener(actionEvent -> {
+                // ouvre le sélecteur de fichiers
                 int returnVal = fc.showOpenDialog(mainPanel);
 
+                // remplit le textfield avec l'url du fichier
                 if (returnVal == JFileChooser.APPROVE_OPTION) {
                     File file = fc.getSelectedFile();
-                    //This is where a real application would open the file.
                     instrumentUIs.get(index).textField.setText(file.getAbsolutePath());
                 }
             });
@@ -189,7 +189,7 @@ public class MainWindow {
             // Boutons de lancement de calibration
             instrumentUIs.get(i).calibrate.addActionListener(actionEvent -> {
                 Thread t = new Thread(() -> {
-                    // Fenêtre de progression
+                    // Fenêtre de progression (5 secondes)
                     final JDialog dlg = new JDialog(new JFrame(), "Calibrating", true);
                     final JProgressBar dpb = new JProgressBar(0, 500);
                     dlg.add(BorderLayout.CENTER, dpb);
@@ -202,51 +202,43 @@ public class MainWindow {
                     Thread t12 = new Thread(() -> dlg.setVisible(true));
                     t12.start();
 
-                    try {
-                        double min = Double.MAX_VALUE;
-                        for (int i1 = 0; i1 < 500; i1++) {
-                            dpb.setValue(i1);
-                            double val = instrumentUIs.get(index).instrument.getSensorValue();
+                    double min = Double.MAX_VALUE;
+                    for (int i1 = 0; i1 < 500; i1++) {
+                        // fait avancer la barre de progression
+                        dpb.setValue(i1);
+                        // récupère la valeur du capteur
+                        double val = instrumentUIs.get(index).instrument.getSensorValue();
 
-                            if (val < min && val > 0.0) {
-                                min = val;
-                            }
-
-                            try {
-                                Thread.sleep(10);
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
-                            }
+                        // garde la valeur min (qui n'est pas 0.0, car il arrive que 0.0 soit lu, c'est une erreur)
+                        if (val < min && val > 0.0) {
+                            min = val;
                         }
 
-                        dlg.dispose();
-
-                        instrumentUIs.get(index).instrument.setLowerThreshold(min);
-
-                    } catch (PhidgetException e) {
                         try {
-                            // Attend l'affichage de la fenêtre de progression avant de la fermer
-                            Thread.sleep(100);
-                        } catch (InterruptedException e1) {
+                            Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
                         }
-                        dlg.dispose();
-
-                        // message d'erreur
-                        JOptionPane.showMessageDialog(mainPanel,
-                                "Sensor " + index + " isn't plugged in !",
-                                "Sensor error",
-                                JOptionPane.ERROR_MESSAGE);
                     }
+
+                    // ferme la fenêtre de progression
+                    dlg.dispose();
+
+                    // le seuil d'activation est la plus petite valeur observée
+                    instrumentUIs.get(index).instrument.setLowerThreshold(min);
+
 
                 });
                 t.start();
             });
 
-            // Enabled checkbox
+            // "enabled" checkbox
             instrumentUIs.get(i).enabled.addActionListener(actionEvent -> {
                 try {
+                    // essaie d'activer l'instrument
                     instrumentUIs.get(index).instrument.setEnabled(instrumentUIs.get(index).enabled.isSelected());
                 } catch (Exception e) {
+                    // en cas d'erreur, déselectionne la checkbox et affiche un message d'erreur
                     instrumentUIs.get(index).enabled.setSelected(false);
 
                     // message d'erreur
@@ -258,7 +250,7 @@ public class MainWindow {
             });
         }
 
-        // désactive tous les instruments
+        // désactive tous les instruments (bouton mute all)
         muteAll.addActionListener(actionEvent -> {
             for (InstrumentUI ins : instrumentUIs) {
                 if (ins.enabled.isSelected()) {
@@ -283,48 +275,46 @@ public class MainWindow {
                 Thread dialogThread = new Thread(() -> dlg.setVisible(true));
                 dialogThread.start();
 
-
+                // pour chaque instrument, prépare la calibration sur un autre thread
                 ArrayList<Thread> threads = new ArrayList<>();
                 for (int j = 0; j < instrumentUIs.size(); j++) {
                     final int finalJ = j;
 
                     threads.add(new Thread(() -> {
-                        try {
-                            double min = Double.MAX_VALUE;
-                            for (int i = 0; i < 500; i++) {
-                                dpb.setValue(i);
-                                double val = instrumentUIs.get(finalJ).instrument.getSensorValue();
+                        double min = Double.MAX_VALUE;
+                        for (int i = 0; i < 500; i++) {
+                            // fait avancer la barre de progression
+                            dpb.setValue(i);
+                            // récupère la valeur du capteur
+                            double val = instrumentUIs.get(finalJ).instrument.getSensorValue();
 
-                                if (val < min && val > 0.0) {
-                                    min = val;
-                                }
-
-                                try {
-                                    Thread.sleep(10);
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
+                            // garde la valeur min (qui n'est pas 0.0, car il arrive que 0.0 soit lu, c'est une erreur)
+                            if (val < min && val > 0.0) {
+                                min = val;
                             }
 
-                            dlg.dispose();
-
-                            instrumentUIs.get(finalJ).instrument.setLowerThreshold(min);
-
-                        } catch (PhidgetException e) {
                             try {
-                                // Attend l'affichage de la fenêtre de progression avant de la fermer
-                                Thread.sleep(100);
-                            } catch (InterruptedException e1) {
+                                Thread.sleep(10);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
                             }
-                            dlg.dispose();
                         }
+
+                        // ferme la fenêtre de progression
+                        dlg.dispose();
+
+                        // le seuil d'activation est la plus petite valeur observée
+                        instrumentUIs.get(finalJ).instrument.setLowerThreshold(min);
+
                     }));
                 }
 
+                // lance les threads
                 for (Thread t1 : threads) {
                     t1.start();
                 }
 
+                // attend la fin des calibrations
                 for (Thread t1 : threads) {
                     try {
                         t1.join();
@@ -347,10 +337,8 @@ public class MainWindow {
                         "Error",
                         JOptionPane.ERROR_MESSAGE);
             } else {
-
                 try {
-
-                    Preferences prefs = Preferences.userRoot().node("tremor");
+                    Preferences prefs = Preferences.userRoot().node(ROOT_NODE);
 
                     // Si le profil existe, on demande confirmation
                     if (prefs.nodeExists(profilesComboBox.getSelectedItem().toString())) {
@@ -364,6 +352,7 @@ public class MainWindow {
                         }
                     }
 
+                    // sauvegarde tous les InstrumentUIs
                     Preferences profileNode = prefs.node(profilesComboBox.getSelectedItem().toString());
 
                     for (int i = 0; i < instrumentUIs.size(); i++) {
@@ -375,8 +364,10 @@ public class MainWindow {
                                 .instrument.getLowerThreshold());
                     }
 
+                    // applique les changements
                     prefs.flush();
 
+                    // recharge la liste des profils
                     refreshProfiles();
                 } catch (BackingStoreException e) {
                     e.printStackTrace();
@@ -386,7 +377,7 @@ public class MainWindow {
 
         // load a profile
         loadProfileBtn.addActionListener(actionEvent -> {
-            Preferences prefs = Preferences.userRoot().node("tremor");
+            Preferences prefs = Preferences.userRoot().node(ROOT_NODE);
 
             try {
                 if (profilesComboBox.getSelectedItem() == null || !prefs.nodeExists(profilesComboBox
@@ -420,7 +411,7 @@ public class MainWindow {
         // supprime un profile
         deleteProfileBtn.addActionListener(actionEvent -> {
             try {
-                Preferences prefs = Preferences.userRoot().node("tremor");
+                Preferences prefs = Preferences.userRoot().node(ROOT_NODE);
 
                 if (profilesComboBox.getSelectedItem() == null || !prefs.nodeExists(profilesComboBox
                         .getSelectedItem().toString())) {
@@ -449,6 +440,10 @@ public class MainWindow {
                 e.printStackTrace();
             }
 
+            // vide la combobox
+            profilesComboBox.setSelectedItem(null);
+
+            // rechage la liste des profils
             refreshProfiles();
         });
 
@@ -459,20 +454,22 @@ public class MainWindow {
     }
 
     public void refreshProfiles() {
+        // sauvegarde le dernier élément sélectionné
+        Object selected = profilesComboBox.getSelectedItem();
+
+        // retire tous les profils de la combobox
         profilesComboBox.removeAllItems();
-        Set<String> names = new TreeSet<>();
 
         try {
-            Preferences prefs = Preferences.userRoot().node("tremor");
-            for (String name : prefs.childrenNames()) {
-                names.add(name);
-            }
-
+            // lit tous les noms de profils et ajoute les noms de profil à la combobox
+            Preferences prefs = Preferences.userRoot().node(ROOT_NODE);
+            Arrays.asList(prefs.childrenNames()).forEach(profilesComboBox::addItem);
         } catch (BackingStoreException e) {
             e.printStackTrace();
         }
 
-        names.forEach(profilesComboBox::addItem);
+        // resélectionne le dernier élément sélectionné
+        profilesComboBox.setSelectedItem(selected);
     }
 
     /**

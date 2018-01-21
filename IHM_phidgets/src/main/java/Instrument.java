@@ -7,14 +7,19 @@ import java.io.IOException;
 /**
  * Project : IHM_phidgets
  * Date : 30.12.17
+ * Authors : Antoine FRIANT, Lawrence STALDER, Valentin FININI
+ *
+ * Représente un capteur et son fichier audio
  */
 public class Instrument {
-    private VoltageRatioInput sensorInput;
-    private Clip clip;
-    private boolean enabled = false;
-    private double lowerThreshold = 0.45;
-    private double previousValue = lowerThreshold;
+    private VoltageRatioInput sensorInput;  // input du capteur
+    private Clip clip;                      // clip audio
+    private boolean enabled = false;        // instrument muet ou non
+    private double lowerThreshold = 0.45;   // seuil d'activation
 
+    /**
+     * Constructeur
+     */
     public Instrument() {
         try {
             clip = AudioSystem.getClip();
@@ -23,7 +28,14 @@ public class Instrument {
         }
     }
 
+    /**
+     * Assigne un capteur à l'instrument
+     *
+     * @param sensorInput capteur
+     * @throws PhidgetException
+     */
     public void setSensorInput(VoltageRatioInput sensorInput) throws PhidgetException {
+        // ferme le capteur précédent s'il était déjà ouvert
         if (this.sensorInput != null) {
             this.sensorInput.close();
         }
@@ -38,10 +50,17 @@ public class Instrument {
             }
         });
 
+        // ouvre le canal du capteur
         sensorInput.open();
+
         this.sensorInput = sensorInput;
     }
 
+    /**
+     * Assigne un fichier audio à l'instrument
+     *
+     * @param inputStream
+     */
     public void setAudioInputStream(AudioInputStream inputStream) {
         try {
             if (clip.isOpen()) {
@@ -55,25 +74,44 @@ public class Instrument {
         }
     }
 
+    /**
+     * Joue le fichier son
+     */
     public void play() {
         clip.setFramePosition(0);
         clip.start();
     }
 
-    public double getSensorValue() throws PhidgetException {
-//        double val = sensorInput.getSensorValue();
-//        lowerThreshold = (val + previousValue)/2;
-//        previousValue = val;
-        return sensorInput.getSensorValue();
+    /**
+     * Récupère la reçue par le capteur
+     * @return
+     */
+    public double getSensorValue() {
+        try {
+            return sensorInput.getSensorValue();
+        } catch (PhidgetException e) {
+            return 0.5;
+        }
     }
 
+    /**
+     * Retourne faux si l'instrument est rendu muet par l'utilisateur
+     * @return
+     */
     public synchronized boolean isEnabled() {
         return enabled;
     }
 
+    /**
+     * Active ou rend muet le capteur
+     *
+     * @param enabled
+     * @throws PhidgetException levée si le capteur n'est pas branché
+     * @throws NullPointerException levée si le fichier audio n'est pas défini
+     */
     public synchronized void setEnabled(boolean enabled) throws PhidgetException, NullPointerException {
         if (enabled) {
-            // teste le fonctionnement de getSensorValue()
+            // teste le fonctionnement de getSensorValue (s'il lance une exception ou non)
             sensorInput.getSensorValue();
             if (!clip.isOpen()) {
                 throw new NullPointerException();
@@ -83,10 +121,17 @@ public class Instrument {
         this.enabled = enabled;
     }
 
+    /**
+     * Définit un seuil d'activation
+     * @param lowerThreshold
+     */
     public void setLowerThreshold(double lowerThreshold) {
         this.lowerThreshold = lowerThreshold;
     }
 
+    /**
+     * @return seuil d'activation
+     */
     public double getLowerThreshold() {
         return lowerThreshold;
     }

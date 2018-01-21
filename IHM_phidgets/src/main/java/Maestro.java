@@ -1,16 +1,21 @@
-import com.phidget22.*;
-
 import java.util.ArrayList;
 
 /**
  * Project : IHM_phidgets
  * Date : 30.12.17
+ * Authors : Antoine FRIANT, Lawrence STALDER, Valentin FININI
+ *
+ * Coordinateur entre instruments
  */
 public class Maestro implements Runnable {
-    private final int ACTIVATION_COOLDOWN = 50;
+    private final int ACTIVATION_COOLDOWN = 50;// temps minimal entre deux activation d'instruments
 
     private ArrayList<Instrument> instruments; // paires Input <-> fichier son
 
+    /**
+     * Constructeur
+     * @param instruments
+     */
     public Maestro(ArrayList<Instrument> instruments) {
         this.instruments = instruments;
     }
@@ -45,12 +50,11 @@ public class Maestro implements Runnable {
                 }
 
                 if (triggeredInstrument != null) {
+                    // lance le fichier son et arrête d'écouter les capteurs pendant quelques millisecondes
                     triggeredInstrument.play();
                     Thread.sleep(ACTIVATION_COOLDOWN);
                 }
             }
-        } catch (PhidgetException e) {
-            e.printStackTrace();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
