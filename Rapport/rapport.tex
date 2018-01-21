@@ -120,7 +120,7 @@
 	
 	\section{Problèmes rencontrés}
 	\subsection{Java et ALSA}
-	Ayant développé l'application en Java sur Linux, nous avons fait face à une difficulté inattendue : Java et le pilote ALSA ne s'aiment pas. Bien que beaucoup de problèmes de compatibilité fussent résolus au fil des années, nous en avec rencontré un autre : Java lit les fichiers audio sur ce qu'il considère comme la carte son par défaut, plutôt que la carte son en cours d'utilisation. Il fallu donc explicitement configurer ALSA pour que la sortie par défaut soit le haut-parleur plutôt que la prise HDMI sur laquelle rien n'était connecté.
+	Ayant développé l'application en Java sur Linux, nous avons fait face à une difficulté inattendue : Java et le pilote ALSA ne s'aiment pas. Bien que beaucoup de problèmes de compatibilité furent résolus au fil des années, nous en avec rencontré un autre : Java lit les fichiers audio sur ce qu'il considère comme la carte son par défaut, plutôt que la carte son en cours d'utilisation. Il fallu donc explicitement configurer ALSA pour que la sortie par défaut soit le haut-parleur plutôt que la prise HDMI sur laquelle rien n'était connecté.
 	
 	Malgré cela, il se peut que Java lève une erreur signalant que le canal audio est occupé. Redémarrer l'ordinateur règle ce problème.
 	
