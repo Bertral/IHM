@@ -77,9 +77,9 @@
 	
 	
 	\section{Introduction}
-	Ce projet consiste à concevoir et implémenter une interface homme-machine à partir de capteurs de vibration Phidget.
+	Ce projet consiste à concevoir et implémenter une interface homme-machine à partir de capteurs de vibrations Phidget.
 	
-	\textit{Tremor} ("secousse") est un application qui fonctionne avec ces capteurs de vibration au sol et permet de choisir un son qui se produit à l'activation d'un capteur. Si les capteurs sont fiables et bien calibrés, il devrait être possible de faire de la musique en tapant des pieds !
+	\textit{Tremor} ("secousse") est une application qui fonctionne avec ces capteurs de vibrations au sol et permet de choisir un son qui se produit à l'activation d'un capteur. Si les capteurs sont fiables et bien calibrés, il devrait être possible de faire de la musique en tapant des pieds !
 	
 	\section{Guide d'installation}
 	
@@ -100,7 +100,7 @@
 		\item Munissez vous d'un PhidgetInterfaceKit (phidget ID : 1018\_X) ainsi que de 1 à 8 Vibration Sensors (phidget ID : 1104\_0).
 		\item Connectez les capteurs aux entrées analogiques du kit d'interface. La position d'un capteur sur le kit d'interface déterminera son numéro dans l'application : de gauche à droite, ils seront numérotés de 0 à 7.
 		\item Connectez le kit d'interface à l'ordinateur \textit{via} USB.
-		\item Posez les capteurs au sol. Ils devraient être espacés d'au moins 1 mètre et les disques métalliques ne doivent pas être en contact avec le sol (utilisez le poids d'un petit objet, ou du ruban adhésif pour les fixer).
+		\item Posez les capteurs au sol. Ils doivent être espacés d'au moins 1 mètre et les disques métalliques ne doivent pas être en contact avec le sol (utilisez le poids d'un petit objet, ou du ruban adhésif pour les fixer).
 	\end{itemize}
 	\section{Guide d'utilisation}
 	Pour lancer Tremor double cliquez sur l'archive Tremor.jar ou, si votre système n'est pas configuré pour exécuter des archives jar, ouvrez un terminal à l'endroit où se trouve Tremor.jar et exécutez la commande "\texttt{java -jar Tremor.jar}". La fenêtre principale dont un exemple est illustré en figure \ref{illus} apparaît alors.
@@ -141,5 +141,9 @@
 	Un problème supplémentaire était encore à régler : lorsqu'on tape au sol, tous les capteurs reçoivent la vibration à un intensité très similaire. Afin d'éviter que tous les instruments jouent un son en même temps à chaque input, nous avons pensé à n'activer que l'instrument donc le capteur s'active en premier. Ce n'est pas possible car la vitesse de l'onde de choc dans le bois est de 1 à 4 m/ms, soit 20 fois trop rapide pour l'intervalle d'échantillonnage de nos capteurs.
 	
 	Nous avons donc opté pour l'activation de l'instrument dont le capteur est le plus en-dessous du seuil d'activation. Un fois qu'un instrument est activé, aucun instrument ne peut être réactivé pendant 50 ms. Malgré cela, il arrive encore que le mauvais instrument soit activé à cause du manque de précision des capteurs et surtout, d'après nous, la perte de précision due à l'échantillonnage effectué par les capteurs.
+	
+	\subsection{Conclusion}
+	
+	Ce projet contenait des contraintes matérielles fortes que nous ne sommes pas parvenus à entièrement surmonter. Le capteur qui détecte les vibrations n'est parfois pas celui que l'utilisateur aurait voulu activer, et il arrive qu'aucun capteur ne détecte le coup de pied. Bien que l'application fonctionne, elle n'est pas suffisamment fiable pour une utilisation par le grand public.
 		
 \end{document}
